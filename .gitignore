@@ -1,0 +1,55 @@
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# Editor configurations
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.cache
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# Dependency files
+pip-log.txt
+yarn.lock
+package-lock.json
+
+# Coverage reports
+.coverage
+*.cover
+*.coverage.*
+coverage.xml
+
+# Test outputs
+*.pytest_cache/
+.tox/
+
+# Other files
+output.txt
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
