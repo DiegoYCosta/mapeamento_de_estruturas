@@ -99,10 +99,10 @@ def rename_item(listbox, index, history):
     old_name = history[index]['name']
     new_name = simpledialog.askstring(
         "Renomear",
-        "Informe novo nome (máx 20 caracteres):",
+        "Informe novo nome (máx 30 caracteres):",
         initialvalue=old_name)
     if new_name:
-        new_name = new_name.strip()[:20]
+        new_name = new_name.strip()[:30]
         history[index]['name'] = new_name
         save_history(history)
         listbox.delete(index)
