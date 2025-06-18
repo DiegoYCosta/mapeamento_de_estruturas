@@ -291,12 +291,12 @@ def show_selection_gui(window, base_path, saved_selection=None):
         try:
             with open(out_file, "w", encoding="utf-8") as out:
                 for fp in selected:
-                    out.write(f"=== {fp} ===\n")
                     try:
                         with open(fp, "r", encoding="utf-8") as f:
+                            out.write(f"=== {fp} ===\n")
                             out.write(f.read() + "\n\n")
-                    except Exception as e:
-                        out.write(f"Erro ao ler {fp}: {e}\n\n")
+                    except Exception:
+                        continue
 
             with open(out_file, "r", encoding="utf-8") as out:
                 pyperclip.copy(out.read())
