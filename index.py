@@ -229,6 +229,18 @@ def show_selection_gui(window, base_path, saved_selection=None):
         canvas.pack(side=LEFT, fill=BOTH, expand=True)
         scrollbar.pack(side=RIGHT, fill=Y)
 
+        # Suporte ao scroll do mouse (Windows, Linux, Mac)
+        def _on_mousewheel(event):
+            if event.num == 4 or event.delta > 0:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5 or event.delta < 0:
+                canvas.yview_scroll(1, "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)      # Windows/Mac
+        canvas.bind_all("<Button-4>", _on_mousewheel)        # Linux scroll up
+        canvas.bind_all("<Button-5>", _on_mousewheel)        # Linux scroll down
+
+
         def toggle_visibility(button, frame):
             if frame.winfo_viewable():
                 frame.pack_forget()
