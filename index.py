@@ -5,7 +5,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import (
     Tk, filedialog, Checkbutton, Button, IntVar,
-    Scrollbar, Canvas, Frame, VERTICAL, BOTH, RIGHT, LEFT, Y, messagebox, simpledialog, messagebox
+    Scrollbar, Canvas, Frame, VERTICAL, BOTH, RIGHT, LEFT, Y, messagebox, simpledialog
 )
 
 IGNORED_PATTERNS = [
@@ -16,68 +16,44 @@ IGNORED_PATTERNS = [
     ".nuxt", ".yarn", "yarn.lock", "package-lock.json", "*.lock", "Thumbs.db", ".sass-cache", ".cache"
 ]
 
-STATE_FILE = "selection_state.json"
+HISTORY_FILE = "selection_state.json"
 MAX_HISTORY = 10
-
-FIXED_NAMES = [
-    "Última Sel.",
-    "Save 02",
-    "Save 03",
-    "Save 04",
-    "Save 05",
-    "Save 06",
-    "Save 07",
-    "Save 08",
-    "Save 09",
-    "Save 10"
-]
 
 def load_history():
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            history = data.get("history", [])
+            return data.get("history", [])
     except Exception:
-        history = []
-
-    normalized = []
-    for i in range(MAX_HISTORY):
-        if i < len(history):
-            entry = history[i]
-            if i == 0 and not entry.get("path"):
-                normalized.append({
-                    "path": "",
-                    "selected": [],
-                    "saved_at": "",
-                    "name": FIXED_NAMES[0]
-                })
-            else:
-                normalized.append({
-                    "path": entry.get("path", ""),
-                    "selected": entry.get("selected", []),
-                    "saved_at": entry.get("saved_at", ""),
-                    "name": entry.get("name", FIXED_NAMES[i])[:10]
-                })
-        else:
-            normalized.append({
-                "path": "",
-                "selected": [],
-                "saved_at": "",
-                "name": FIXED_NAMES[i]
-            })
-
-    normalized[0]["name"] = FIXED_NAMES[0]
-    if not normalized[0]["path"]:
-        normalized[0]["selected"] = []
-        normalized[0]["saved_at"] = ""
-
-    return normalized
+        return []
 
 def save_history(history):
-    for i in range(len(history)):
-        history[i]["name"] = history[i].get("name", FIXED_NAMES[i])[:10]
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump({"history": history[:MAX_HISTORY]}, f, indent=2, ensure_ascii=False)
+
+def add_or_update_history(history, path, selected, name=None):
+    # Remove duplicata pelo path
+    for i, entry in enumerate(history):
+        if os.path.normcase(entry['path']) == os.path.normcase(path):
+            # Atualiza seleção e data se já existir
+            entry['selected'] = selected
+            entry['saved_at'] = datetime.now().isoformat()
+            if name:
+                entry['name'] = name
+            # Move para o topo
+            history.insert(0, history.pop(i))
+            break
+    else:
+        # Adiciona novo no topo
+        history.insert(0, {
+            "path": path,
+            "selected": selected,
+            "saved_at": datetime.now().isoformat(),
+            "name": name or os.path.basename(path) or "Histórico"
+        })
+    # Limita tamanho do histórico
+    del history[MAX_HISTORY:]
+    return history
 
 class ToolTip(object):
     def __init__(self, widget, text=''):
@@ -107,26 +83,23 @@ class ToolTip(object):
             tw.destroy()
 
 def rename_item(listbox, index, history):
-    if index == 0:
-        messagebox.showinfo("Atenção", "O item 'Última Seleção' não pode ser renomeado.")
-        return
     old_name = history[index]['name']
     new_name = simpledialog.askstring(
         "Renomear",
-        "Informe novo nome (máx 10 caracteres):",
+        "Informe novo nome (máx 20 caracteres):",
         initialvalue=old_name)
     if new_name:
-        new_name = new_name.strip()[:10]
+        new_name = new_name.strip()[:20]
         history[index]['name'] = new_name
+        save_history(history)
         listbox.delete(index)
         listbox.insert(index, new_name)
-        save_history(history)
 
 def create_history_listbox(parent, history):
     listbox = tk.Listbox(parent, font=("Segoe UI", 11), height=15)
     listbox.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     for entry in history:
-        display_name = entry.get("name") or entry.get("path") or "Nenhuma pasta"
+        display_name = entry.get("name") or os.path.basename(entry.get("path") or "") or "Nenhuma pasta"
         listbox.insert(tk.END, display_name)
 
     def on_motion(event):
@@ -145,7 +118,19 @@ def create_history_listbox(parent, history):
 
     listbox.bind("<Motion>", on_motion)
     listbox.bind("<Leave>", on_leave)
-    listbox.bind("<Double-Button-1>", lambda e: rename_item(listbox, listbox.nearest(e.y), history))
+    def on_rename(event):
+        idx = listbox.nearest(event.y)
+        # Busca o histórico atualizado (sempre sincronizado)
+        hist = load_history()
+        if 0 <= idx < len(hist):
+            rename_item(listbox, idx, hist)
+            # Após renomear, atualiza o listbox inteiro para evitar mismatch
+            listbox.delete(0, tk.END)
+            for entry in hist:
+                display_name = entry.get("name") or os.path.basename(entry.get("path") or "") or "Nenhuma pasta"
+                listbox.insert(tk.END, display_name)
+    listbox.bind("<Double-Button-1>", on_rename)
+
     return listbox
 
 def should_ignore(path):
@@ -176,7 +161,6 @@ def show_selection_gui(window, base_path, saved_selection=None):
     window.resizable(True, True)
 
     abs_base = os.path.abspath(base_path)
-    history = load_history()
 
     left_frame = Frame(window)
     left_frame.pack(side=tk.LEFT, fill=BOTH, expand=True)
@@ -184,23 +168,26 @@ def show_selection_gui(window, base_path, saved_selection=None):
     right_frame = Frame(window, width=280, bg="#f8f8f8", bd=1, relief="solid")
     right_frame.pack(side=tk.RIGHT, fill=Y)
 
+    history = load_history()
     hist_listbox = create_history_listbox(right_frame, history)
     current_path = abs_base
     current_saved = set(saved_selection or [])
 
-    save_var = IntVar(master=window, value=1 if saved_selection else 0)
     vars_dict = {}
 
     bottom = Frame(left_frame)
     bottom.pack(fill="x", pady=5)
-    save_checkbox = Checkbutton(bottom, text="Salvar Seleção", variable=save_var)
-    save_checkbox.pack(side=LEFT, padx=5)
+
+    # save_checkbox = Checkbutton(bottom, text="Salvar Seleção (histórico é automático)")
+    # save_checkbox.pack(side=LEFT, padx=5)
+    # save_checkbox.config(state="disabled")
 
     def refresh_hist_listbox():
+        nonlocal history
         hist_listbox.delete(0, tk.END)
-        h = load_history()
-        for entry in h:
-            display_name = entry.get("name") or entry.get("path") or "Nenhuma pasta"
+        history = load_history()
+        for entry in history:
+            display_name = entry.get("name") or os.path.basename(entry.get("path") or "") or "Nenhuma pasta"
             hist_listbox.insert(tk.END, display_name)
 
     def load_selection(path, saved):
@@ -264,12 +251,6 @@ def show_selection_gui(window, base_path, saved_selection=None):
         dir_structure = get_directory_structure(path)
         add_items(scroll_f, dir_structure)
 
-        if current_path == load_history()[0]["path"]:
-            save_var.set(1)
-            save_checkbox.config(state="disabled")
-        else:
-            save_checkbox.config(state="normal")
-
     def on_ok():
         selected = [p for p, v in vars_dict.items() if v.get()]
         out_file = "output.txt"
@@ -287,45 +268,9 @@ def show_selection_gui(window, base_path, saved_selection=None):
                 pyperclip.copy(out.read())
 
             history = load_history()
-
-            # Atualiza slot 0 somente se for a pasta inicial (base_path)
-            if current_path == os.path.abspath(base_path):
-                history[0]["selected"] = selected
-                history[0]["saved_at"] = datetime.now().isoformat()
-
-            # Atualiza outros slots conforme lógica existente
-            slot_found = False
-            for i in range(1, MAX_HISTORY):
-                h = history[i]
-                if h["path"] == current_path:
-                    history[i]["selected"] = selected
-                    history[i]["saved_at"] = datetime.now().isoformat()
-                    slot_found = True
-                    break
-            if not slot_found and save_var.get() and current_path != history[0]["path"]:
-                inserted = False
-                for i in range(1, MAX_HISTORY):
-                    if history[i]["path"] == "":
-                        history[i] = {
-                            "path": current_path,
-                            "selected": selected,
-                            "saved_at": datetime.now().isoformat(),
-                            "name": history[i]["name"]
-                        }
-                        inserted = True
-                        break
-                if not inserted:
-                    messagebox.showwarning("Aviso", "Não há espaço para salvar esta pasta na lista. Limpe um slot antes.")
-            elif not save_var.get() and current_path != history[0]["path"]:
-                for i, h in enumerate(history):
-                    if h["path"] == current_path:
-                        history[i]["selected"] = []
-                        history[i]["saved_at"] = ""
-
+            history = add_or_update_history(history, current_path, selected)
             save_history(history)
             refresh_hist_listbox()
-            save_var.set(0)
-            save_checkbox.config(state="normal")
             messagebox.showinfo("Sucesso", "Arquivos copiados para o clipboard!")
         except Exception as e:
             messagebox.showerror("Erro", str(e))
@@ -340,56 +285,57 @@ def show_selection_gui(window, base_path, saved_selection=None):
     hist_listbox.bind("<<ListboxSelect>>", on_hist_select)
 
     def open_new_folder():
-        new_path = filedialog.askdirectory(title="Selecione a pasta que deseja mapear")
+        new_path = filedialog.askdirectory(title="Selecione a nova pasta")
         if new_path:
-            sel = hist_listbox.curselection()
-            index_to_update = sel[0] if sel else 0
-            if index_to_update == 0:
-                messagebox.showwarning("Aviso", "A pasta 'Última Sel.' não pode ser alterada aqui.")
-                return
             history = load_history()
-            now_str = datetime.now().isoformat()
-            old_name = history[index_to_update].get("name", FIXED_NAMES[index_to_update])
-            history[index_to_update] = {
-                "path": new_path,
-                "selected": [],
-                "saved_at": now_str,
-                "name": old_name
-            }
+            history = add_or_update_history(history, new_path, [])
             save_history(history)
             refresh_hist_listbox()
             hist_listbox.selection_clear(0, tk.END)
-            hist_listbox.selection_set(index_to_update)
-            hist_listbox.activate(index_to_update)
+            hist_listbox.selection_set(0)
+            hist_listbox.activate(0)
             load_selection(new_path, [])
 
     Button(right_frame, text="Abrir Nova Pasta", command=open_new_folder).pack(pady=10, padx=10)
     Button(bottom, text="Selecionar Tudo", command=lambda: [var.set(1) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
-    Button(bottom, text="OK", command=on_ok).pack(side=RIGHT, padx=5)
-    Button(bottom, text="Cancelar", command=window.destroy).pack(side=RIGHT, padx=5)
-    load_selection(abs_base, saved_selection)
+    Button(bottom, text="Deselecionar Tudo", command=lambda: [var.set(0) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
+    Button(bottom, text="Copiar", command=on_ok).pack(side=RIGHT, padx=5)
+    Button(bottom, text="Copiar e Fechar", command=lambda: [on_ok(), window.destroy()]).pack(side=RIGHT, padx=5)
+
+
+    
+    if history:
+        # Seleciona e carrega o primeiro item do histórico
+        hist_listbox.selection_clear(0, tk.END)
+        hist_listbox.selection_set(0)
+        hist_listbox.activate(0)
+        entry = history[0]
+        load_selection(entry["path"], entry.get("selected", []))
+    else:
+        load_selection(abs_base, saved_selection)
+
 
 if __name__ == "__main__":
     root = Tk()
-    root.withdraw()
-    initial_path = filedialog.askdirectory(title="Selecione a pasta que deseja mapear")
-    if not initial_path:
-        print("Nenhuma pasta foi selecionada.")
-    else:
-        history = load_history()
-        now_str = datetime.now().isoformat()
-
-        # Determina seleção para o index 0 sem sobrescrever se já existir
-        if history[0]["path"] == initial_path and history[0]["selected"]:
-            saved_selection = history[0]["selected"]
-        else:
-            history[0]["path"] = initial_path
-            history[0]["selected"] = []
-            history[0]["saved_at"] = now_str
-            history[0]["name"] = FIXED_NAMES[0]
-            save_history(history)
-            saved_selection = None
-
+    history = load_history()
+    if history:
+        last = history[0]
+        initial_path = last["path"]
+        sel = last.get("selected", [])
         root.deiconify()
-        show_selection_gui(root, initial_path, saved_selection)
+        show_selection_gui(root, initial_path, sel)
         root.mainloop()
+    else:
+        # Não tem histórico: abre dialog para escolher
+        root.withdraw()
+        initial_path = filedialog.askdirectory(title="Selecione a pasta que deseja mapear")
+        if not initial_path:
+            print("Nenhuma pasta foi selecionada.")
+        else:
+            sel = []
+            history = add_or_update_history(load_history(), initial_path, sel)
+            save_history(history)
+            root.deiconify()
+            show_selection_gui(root, initial_path, sel)
+            root.mainloop()
+
