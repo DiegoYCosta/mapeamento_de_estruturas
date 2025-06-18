@@ -8,6 +8,19 @@ from tkinter import (
     Scrollbar, Canvas, Frame, VERTICAL, BOTH, RIGHT, LEFT, Y, messagebox, simpledialog
 )
 
+def show_toast(window, msg, duration=2000):
+    toast = tk.Toplevel(window)
+    toast.overrideredirect(True)
+    toast.attributes("-topmost", True)
+    # Calcula posição no centro inferior da janela principal
+    window.update_idletasks()
+    x = window.winfo_rootx() + (window.winfo_width() // 2) - 100
+    y = window.winfo_rooty() + window.winfo_height() - 80
+    toast.geometry(f"350x40+{x}+{y}")
+    label = tk.Label(toast, text=msg, bg="#444", fg="white", font=("Segoe UI", 11), bd=2, relief="solid")
+    label.pack(fill=BOTH, expand=True)
+    toast.after(duration, toast.destroy)
+
 IGNORED_PATTERNS = [
     ".git", "node_modules", "__pycache__", ".DS_Store", ".vscode", "*.pyc", "*.pyo", "*.exe",
     "*.dll", "*.so", "*.dylib", "*.log", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
@@ -271,7 +284,7 @@ def show_selection_gui(window, base_path, saved_selection=None):
             history = add_or_update_history(history, current_path, selected)
             save_history(history)
             refresh_hist_listbox()
-            messagebox.showinfo("Sucesso", "Arquivos copiados para o clipboard!")
+            show_toast(window, "Arquivos copiados para o clipboard!")
         except Exception as e:
             messagebox.showerror("Erro", str(e))
 
