@@ -24,7 +24,7 @@ def show_toast(window, msg, duration=2000):
 IGNORED_FILE = "never_select.json"
 IGNORED_PATTERNS = [
     ".git", "node_modules", "__pycache__", ".DS_Store", ".vscode", "*.pyc", "*.pyo", "*.exe",
-    "*.dll", "*.so", "*.dylib", "*.log", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
+    "*.dll", "*.so", "*.dylib", "*.log","*.db", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
     "*.jar", "*.war", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar", "dist", "build", "*.egg-info",
     "env", ".env", "venv", ".coverage", ".pytest_cache", ".mypy_cache", "coverage.xml", ".gradle", ".next",
     ".nuxt", ".yarn", "yarn.lock", "package-lock.json", "*.lock", "Thumbs.db", ".sass-cache", ".cache"
