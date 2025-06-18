@@ -1,0 +1,11 @@
+[
+  ".git",
+  "node_modules",
+  ".env",
+  "*.pyc",
+  "*.db",
+  "build",
+  "dist",
+  "secrets.txt",
+  "config/local.env"
+]

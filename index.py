@@ -21,6 +21,7 @@ def show_toast(window, msg, duration=2000):
     label.pack(fill=BOTH, expand=True)
     toast.after(duration, toast.destroy)
 
+IGNORED_FILE = "never_select.json"
 IGNORED_PATTERNS = [
     ".git", "node_modules", "__pycache__", ".DS_Store", ".vscode", "*.pyc", "*.pyo", "*.exe",
     "*.dll", "*.so", "*.dylib", "*.log", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
@@ -30,7 +31,7 @@ IGNORED_PATTERNS = [
 ]
 
 HISTORY_FILE = "selection_state.json"
-MAX_HISTORY = 10
+MAX_HISTORY = 30
 
 def load_history():
     try:
@@ -146,14 +147,22 @@ def create_history_listbox(parent, history):
 
     return listbox
 
+def load_ignored_patterns():
+    try:
+        with open(IGNORED_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return IGNORED_PATTERNS  + [p for p in data if p not in IGNORED_PATTERNS ]
+    except Exception:
+        return IGNORED_PATTERNS 
+
 def should_ignore(path):
-    for pattern in IGNORED_PATTERNS:
+    patterns = load_ignored_patterns()
+    for pattern in patterns:
         if pattern.startswith("*") and path.endswith(pattern[1:]):
             return True
         elif pattern in path:
             return True
     return False
-
 def get_directory_structure(path):
     structure = {}
     try:
@@ -309,7 +318,29 @@ def show_selection_gui(window, base_path, saved_selection=None):
             hist_listbox.activate(0)
             load_selection(new_path, [])
 
+    def remove_selected_history():
+        sel = hist_listbox.curselection()
+        if sel:
+            idx = sel[0]
+            history = load_history()
+            if 0 <= idx < len(history):
+                removed = history.pop(idx)
+                save_history(history)
+                refresh_hist_listbox()
+                show_toast(window, f'Removido: {removed.get("name") or os.path.basename(removed.get("path"))}')
+                # Seleciona outro item, se existir
+                if history:
+                    hist_listbox.selection_set(0)
+                    hist_listbox.activate(0)
+                    load_selection(history[0]["path"], history[0].get("selected", []))
+                else:
+                    # Limpa seleção da esquerda se não houver mais histórico
+                    for widget in left_frame.winfo_children():
+                        if widget != bottom:
+                            widget.destroy()
+
     Button(right_frame, text="Abrir Nova Pasta", command=open_new_folder).pack(pady=10, padx=10)
+    Button(right_frame, text="Remover do Histórico", command=remove_selected_history).pack(pady=2, padx=10)
     Button(bottom, text="Selecionar Tudo", command=lambda: [var.set(1) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
     Button(bottom, text="Deselecionar Tudo", command=lambda: [var.set(0) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
     Button(bottom, text="Copiar", command=on_ok).pack(side=RIGHT, padx=5)
