@@ -351,6 +351,41 @@ def show_selection_gui(window, base_path, saved_selection=None):
                         if widget != bottom:
                             widget.destroy()
 
+        # -- logo antes de criar os botões “Selecionar Tudo” etc. --
+    def map_structure():
+        structure = get_directory_structure(current_path)
+        # monta linhas da árvore
+        lines = [os.path.basename(current_path) + "/"]
+        def build_tree(d, prefix=""):
+            items = sorted(d.items(), key=lambda kv: os.path.basename(kv[0]).lower())
+            for idx, (path, subtree) in enumerate(items):
+                name = os.path.basename(path)
+                last = (idx == len(items) - 1)
+                connector = "└── " if last else "├── "
+                lines.append(f"{prefix}{connector}{name}{'/' if isinstance(subtree, dict) else ''}")
+                if isinstance(subtree, dict):
+                    extension = "    " if last else "│   "
+                    build_tree(subtree, prefix + extension)
+        build_tree(structure)
+
+        tree_text = "\n".join(lines)
+        # copia pro clipboard
+        pyperclip.copy(tree_text)
+        # mostra em janela
+        tree_win = tk.Toplevel(window)
+        tree_win.title("Estrutura de Pastas")
+        txt = tk.Text(tree_win, wrap="none")
+        txt.insert("1.0", tree_text)
+        txt.pack(fill="both", expand=True)
+        # scrollbar horizontal
+        hbar = tk.Scrollbar(tree_win, orient=tk.HORIZONTAL, command=txt.xview)
+        hbar.pack(side=tk.BOTTOM, fill=tk.X)
+        txt.config(xscrollcommand=hbar.set)
+
+        show_toast(window, "Árvore copiada para o clipboard!")
+
+    # -- adiciona o botão junto dos outros em bottom --
+    Button(bottom, text="Mapear Estrutura", command=map_structure).pack(side=LEFT, padx=5)
     Button(right_frame, text="Abrir Nova Pasta", command=open_new_folder).pack(pady=10, padx=10)
     Button(right_frame, text="Remover do Histórico", command=remove_selected_history).pack(pady=2, padx=10)
     Button(bottom, text="Selecionar Tudo", command=lambda: [var.set(1) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
