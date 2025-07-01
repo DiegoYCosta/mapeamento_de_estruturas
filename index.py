@@ -256,31 +256,39 @@ def show_selection_gui(window, base_path, saved_selection=None):
                     else: vars_dict[p].set(status)
             toggle(var.get(), folder_dict)
 
-        def add_items(parent_frame, parent_dict):
+        def add_items(parent_frame, parent_dict, level=0):
             files = [(p, s) for p, s in parent_dict.items() if s is None]
             folders = [(p, s) for p, s in parent_dict.items() if isinstance(s, dict)]
             for path, _ in sorted(files, key=lambda kv: os.path.basename(kv[0]).lower()):
                 name = os.path.basename(path)
                 var = IntVar(master=window, value=1 if path in current_saved else 0)
                 vars_dict[path] = var
-                Checkbutton(parent_frame, text=name, variable=var).pack(anchor="w", padx=20)
+                Checkbutton(
+                    parent_frame,
+                    text=name,
+                    variable=var
+                ).pack(anchor="w", padx=20 + (level * 5))
             for path, subtree in sorted(folders, key=lambda kv: os.path.basename(kv[0]).lower()):
                 name = os.path.basename(path)
                 var = IntVar(master=window, value=1 if any(p.startswith(path) for p in current_saved) else 0)
                 vars_dict[path] = var
-                folder_frame = Frame(parent_frame, bg="#f0f0f0", bd=1, relief="solid")
-                folder_frame.pack(fill="x", padx=5, pady=2)
+                folder_frame = Frame(parent_frame, bg="#e0e3f1" if level % 2 == 0 else "#e6d7d7", bd=1, relief="solid")
+                folder_frame.pack(fill="x", padx=20 + (level * 20), pady=10)
+
                 Checkbutton(
-                    folder_frame, text=name, variable=var,
+                    folder_frame,
+                    text=name,
+                    variable=var,
                     command=lambda v=var, d=subtree: update_folder_selection(v, d),
-                    bg="#f0f0f0"
+                    bg=folder_frame["bg"]
                 ).pack(side=LEFT, padx=5)
                 toggle_btn = Button(folder_frame, text="-", width=2)
                 child_frame = Frame(parent_frame)
-                child_frame.pack(fill="x", padx=10)
+                child_frame.pack(fill="x", padx=20 + (level * 20))
                 toggle_btn.config(command=lambda b=toggle_btn, f=child_frame: toggle_visibility(b, f))
                 toggle_btn.pack(side=RIGHT, padx=5)
-                add_items(child_frame, subtree)
+                add_items(child_frame, subtree, level=level + 1)
+
 
         dir_structure = get_directory_structure(path)
         add_items(scroll_f, dir_structure)
@@ -373,7 +381,7 @@ def show_selection_gui(window, base_path, saved_selection=None):
         pyperclip.copy(tree_text)
         # mostra em janela
         tree_win = tk.Toplevel(window)
-        tree_win.title("Estrutura de Pastas")
+        tree_win.title("Estrutura de Pastas (Copiada pro clipboard)")
         txt = tk.Text(tree_win, wrap="none")
         txt.insert("1.0", tree_text)
         txt.pack(fill="both", expand=True)
@@ -385,7 +393,7 @@ def show_selection_gui(window, base_path, saved_selection=None):
         show_toast(window, "Árvore copiada para o clipboard!")
 
     # -- adiciona o botão junto dos outros em bottom --
-    Button(bottom, text="Mapear Estrutura", command=map_structure).pack(side=LEFT, padx=5)
+    Button(bottom, text="Mapear & Copiar Estrutura", command=map_structure).pack(side=LEFT, padx=5)
     Button(right_frame, text="Abrir Nova Pasta", command=open_new_folder).pack(pady=10, padx=10)
     Button(right_frame, text="Remover do Histórico", command=remove_selected_history).pack(pady=2, padx=10)
     Button(bottom, text="Selecionar Tudo", command=lambda: [var.set(1) for var in vars_dict.values()]).pack(side=LEFT, padx=5)
