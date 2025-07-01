@@ -267,26 +267,27 @@ def show_selection_gui(window, base_path, saved_selection=None):
                     parent_frame,
                     text=name,
                     variable=var
-                ).pack(anchor="w", padx=20 + (level * 5))
+                ).pack(anchor="w", padx=20)
             for path, subtree in sorted(folders, key=lambda kv: os.path.basename(kv[0]).lower()):
                 name = os.path.basename(path)
                 var = IntVar(master=window, value=1 if any(p.startswith(path) for p in current_saved) else 0)
                 vars_dict[path] = var
                 folder_frame = Frame(parent_frame, bg="#e0e3f1" if level % 2 == 0 else "#e6d7d7", bd=1, relief="solid")
-                folder_frame.pack(fill="x", padx=20 + (level * 20), pady=10)
-
+                folder_frame.pack(padx=20 + (level * 20), pady=10, anchor="w")
+                relative_path = os.path.relpath(path, current_path)
                 Checkbutton(
                     folder_frame,
-                    text=name,
+                     text=f"{name}  ({relative_path})",
                     variable=var,
                     command=lambda v=var, d=subtree: update_folder_selection(v, d),
-                    bg=folder_frame["bg"]
+                    bg=folder_frame["bg"],
+                    font=("Segoe UI Semibold", 10)
                 ).pack(side=LEFT, padx=5)
                 toggle_btn = Button(folder_frame, text="-", width=2)
                 child_frame = Frame(parent_frame)
-                child_frame.pack(fill="x", padx=20 + (level * 20))
+                child_frame.pack(padx=20 + (level * 20), anchor="w")
                 toggle_btn.config(command=lambda b=toggle_btn, f=child_frame: toggle_visibility(b, f))
-                toggle_btn.pack(side=RIGHT, padx=5)
+                toggle_btn.pack(anchor="w", padx=5)
                 add_items(child_frame, subtree, level=level + 1)
 
 
