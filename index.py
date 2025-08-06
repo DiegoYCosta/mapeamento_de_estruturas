@@ -27,7 +27,7 @@ IGNORED_PATTERNS = [
     "*.dll", "*.so", "*.dylib", "*.log","*.db", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
     "*.jar", "*.war", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar", "dist", "build", "*.egg-info",
     "env", ".env", "venv", ".coverage", ".pytest_cache", ".mypy_cache", "coverage.xml", ".gradle", ".next",
-    ".nuxt", ".yarn", "yarn.lock", "package-lock.json", "*.lock", "Thumbs.db", ".sass-cache", ".cache"
+    ".nuxt", ".yarn", "yarn.lock", "package-lock.json", "*.lock", "Thumbs.db", ".sass-cache", ".cache","linux", "windows", "macos"
 ]
 
 HISTORY_FILE = "selection_state.json"
@@ -283,10 +283,24 @@ def show_selection_gui(window, base_path, saved_selection=None):
                     bg=folder_frame["bg"],
                     font=("Segoe UI Semibold", 10)
                 ).pack(side=LEFT, padx=5)
-                toggle_btn = Button(folder_frame, text="-", width=2)
+                toggle_btn = Button(folder_frame, width=2)
                 child_frame = Frame(parent_frame)
-                child_frame.pack(padx=20 + (level * 20), anchor="w")
-                toggle_btn.config(command=lambda b=toggle_btn, f=child_frame: toggle_visibility(b, f))
+                pad = 20 + (level * 20)
+                # inicializa só se marcado, e sempre logo após folder_frame
+                if var.get():
+                    toggle_btn.config(text="-")
+                    child_frame.pack(padx=pad, anchor="w", after=folder_frame)
+                else:
+                    toggle_btn.config(text="+")
+                def _toggle(b=toggle_btn, f=child_frame, p=pad, frm=folder_frame):
+                    if f.winfo_viewable():
+                        f.pack_forget()
+                        b.config(text="+")
+                    else:
+                        # repack logo abaixo da pasta correta
+                        f.pack(padx=p, anchor="w", after=frm)
+                        b.config(text="-")
+                toggle_btn.config(command=_toggle)
                 toggle_btn.pack(anchor="w", padx=5)
                 add_items(child_frame, subtree, level=level + 1)
 
