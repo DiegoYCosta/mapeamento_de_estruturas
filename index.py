@@ -8,6 +8,7 @@ from tkinter import (
     Tk, filedialog, Checkbutton, Button, IntVar,
     Scrollbar, Canvas, Frame, VERTICAL, BOTH, RIGHT, LEFT, Y, messagebox, simpledialog
 )
+import sys, subprocess
 
 # depois dos imports
 BASE_DIR = None
@@ -30,9 +31,9 @@ def show_toast(window, msg, duration=2000):
 IGNORED_FILE = "never_select.json"
 IGNORED_PATTERNS = [
     ".git", "node_modules", "__pycache__", ".DS_Store", ".vscode", "*.pyc", "*.pyo", "*.exe",
-    "*.dll", "*.so", "*.dylib", "*.log","*.db", "*.tmp", "*.swp", "*.swo", "*.bak", ".idea", "*.class",
-    "*.jar", "*.war", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar", "dist", "build", "*.egg-info",
-    "env", ".env", "venv", ".coverage", ".pytest_cache", ".mypy_cache", "coverage.xml", ".gradle", ".next",
+    "*.dll", "*.so", "*.dylib", "*.log","*.db", "*.tmp", "*.swp", "*.swo", "*.bak", "*.db", ".idea", "*.class",
+    "*.jar", "*.war", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar", "dist", "build", "*.egg-info", "secrets.txt",
+    "env", ".env", "venv", ".coverage", ".pytest_cache", ".mypy_cache", "coverage.xml", ".gradle", ".next","*.key", "*.pem", "*.pub", "*firebase-key.json", "*serviceAccount*.json",
     ".nuxt", ".yarn", "yarn.lock", "package-lock.json", "*.lock", "Thumbs.db", ".sass-cache", ".cache","linux", "windows", "macos"
 ]
 
@@ -222,11 +223,46 @@ def show_selection_gui(window, base_path, saved_selection=None):
     left_frame = Frame(window)
     left_frame.pack(side=tk.LEFT, fill=BOTH, expand=True)
 
-    right_frame = Frame(window, width=280, bg="#f8f8f8", bd=1, relief="solid")
+    right_frame = Frame(window, width=380, bg="#f8f8f8", bd=1, relief="solid")
     right_frame.pack(side=tk.RIGHT, fill=Y)
 
     history = load_history()
+
+    # Toolbar (ícone para abrir a pasta no Explorer/Finder)
+    toolbar = Frame(right_frame, bg="#f8f8f8")
+    toolbar.pack(fill="x", padx=6, pady=(8, 0))
+
+    # Listbox do histórico
     hist_listbox = create_history_listbox(right_frame, history)
+    current_path = abs_base
+    current_saved = set(saved_selection or [])
+
+    # Botão abrir pasta
+    def _open_selected_history_folder():
+        sel = hist_listbox.curselection()
+        if not sel:
+            show_toast(window, "Selecione um item do histórico.")
+            return
+        path = history[sel[0]].get("path")
+        if not path or not os.path.isdir(path):
+            show_toast(window, "Pasta inválida.")
+            return
+        try:
+            if os.name == "nt":
+                os.startfile(path)               # Windows
+            elif sys.platform == "darwin":
+                subprocess.run(["open", path], check=False)   # macOS
+            else:
+                subprocess.run(["xdg-open", path], check=False)  # Linux
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível abrir: {e}")
+
+    open_btn = Button(toolbar, text="📂", relief="flat",
+                      command=_open_selected_history_folder, cursor="hand2")
+    open_btn.pack(side=RIGHT, padx=2)
+    ToolTip(open_btn, "Abrir pasta no Explorer")
+    open_btn.config(state=(tk.NORMAL if history else tk.DISABLED))
+
     current_path = abs_base
     current_saved = set(saved_selection or [])
 
@@ -241,11 +277,23 @@ def show_selection_gui(window, base_path, saved_selection=None):
 
     def refresh_hist_listbox():
         nonlocal history
+        # preserva seleção atual
+        sel = hist_listbox.curselection()
+        sel_idx = sel[0] if sel else None
+
         hist_listbox.delete(0, tk.END)
         history = load_history()
         for entry in history:
             display_name = entry.get("name") or os.path.basename(entry.get("path") or "") or "Nenhuma pasta"
             hist_listbox.insert(tk.END, display_name)
+        
+        # restaura seleção, se possível
+        if sel_idx is not None and sel_idx < len(history):
+            hist_listbox.selection_set(sel_idx)
+            hist_listbox.activate(sel_idx)
+
+        # habilita/desabilita o botão abrir
+        open_btn.config(state=(tk.NORMAL if history else tk.DISABLED))
 
     def load_selection(path, saved):
         nonlocal current_path, current_saved, vars_dict
