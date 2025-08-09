@@ -1,5 +1,6 @@
 import os
 import json
+from pathspec import PathSpec
 import pyperclip
 from datetime import datetime
 import tkinter as tk
@@ -7,6 +8,11 @@ from tkinter import (
     Tk, filedialog, Checkbutton, Button, IntVar,
     Scrollbar, Canvas, Frame, VERTICAL, BOTH, RIGHT, LEFT, Y, messagebox, simpledialog
 )
+
+# depois dos imports
+BASE_DIR = None
+_spec = None
+
 
 def show_toast(window, msg, duration=2000):
     toast = tk.Toplevel(window)
@@ -151,31 +157,56 @@ def load_ignored_patterns():
     try:
         with open(IGNORED_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return IGNORED_PATTERNS  + [p for p in data if p not in IGNORED_PATTERNS ]
     except Exception:
-        return IGNORED_PATTERNS 
+        data = []
+    seen, out = set(), []
+    for p in IGNORED_PATTERNS + data:
+        p = (p or "").strip()
+        if p and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
 
-def should_ignore(path):
-    patterns = load_ignored_patterns()
-    for pattern in patterns:
-        if pattern.startswith("*") and path.endswith(pattern[1:]):
-            return True
-        elif pattern in path:
-            return True
-    return False
+    
+def _build_spec():
+    global _spec
+    # usa os padrões default + os do arquivo JSON
+    pats = load_ignored_patterns()
+    # normaliza separadores para POSIX
+    pats = [p.replace("\\", "/") for p in pats]
+    # "gitwildmatch" = semântica de .gitignore
+    _spec = PathSpec.from_lines("gitwildmatch", pats)
+
+
+def should_ignore(path: str) -> bool:
+    # garante que o spec exista
+    if _spec is None:
+        _build_spec()
+    # compara caminho RELATIVO à raiz selecionada, com separadores POSIX
+    base = BASE_DIR or os.getcwd()
+    rel = os.path.relpath(path, base).replace("\\", "/")
+    return _spec.match_file(rel)
+
 def get_directory_structure(path):
     structure = {}
     try:
-        for name in sorted(os.listdir(path), key=str.lower):
-            full = os.path.join(path, name)
-            if should_ignore(full): continue
-            if os.path.isdir(full):
-                structure[full] = get_directory_structure(full)
-            else:
-                structure[full] = None
+        with os.scandir(path) as it:
+            for entry in it:
+                full = entry.path
+                if should_ignore(full):
+                    continue
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        structure[full] = get_directory_structure(full)
+                    else:
+                        structure[full] = None
+                except OSError:
+                    # symlink quebrado/sem permissão: ignora
+                    continue
     except PermissionError:
         pass
     return structure
+
 
 def show_selection_gui(window, base_path, saved_selection=None):
     window.title("Seleção de Arquivos")
@@ -183,6 +214,10 @@ def show_selection_gui(window, base_path, saved_selection=None):
     window.resizable(True, True)
 
     abs_base = os.path.abspath(base_path)
+    global BASE_DIR
+    BASE_DIR = abs_base
+    _build_spec()
+
 
     left_frame = Frame(window)
     left_frame.pack(side=tk.LEFT, fill=BOTH, expand=True)
@@ -337,7 +372,13 @@ def show_selection_gui(window, base_path, saved_selection=None):
         if sel:
             idx = sel[0]
             entry = load_history()[idx]
+            # >>> ADICIONAR <<<
+            global BASE_DIR
+            BASE_DIR = os.path.abspath(entry["path"])
+            _build_spec()
+            # -----------------
             load_selection(entry["path"], entry["selected"])
+
 
     hist_listbox.bind("<<ListboxSelect>>", on_hist_select)
 
@@ -351,6 +392,12 @@ def show_selection_gui(window, base_path, saved_selection=None):
             hist_listbox.selection_clear(0, tk.END)
             hist_listbox.selection_set(0)
             hist_listbox.activate(0)
+            # >>> ADICIONAR <<<
+            global BASE_DIR
+            BASE_DIR = os.path.abspath(new_path)
+            _build_spec()
+            # -----------------
+
             load_selection(new_path, [])
 
     def remove_selected_history():
@@ -367,6 +414,11 @@ def show_selection_gui(window, base_path, saved_selection=None):
                 if history:
                     hist_listbox.selection_set(0)
                     hist_listbox.activate(0)
+                    global BASE_DIR
+                    BASE_DIR = os.path.abspath(history[0]["path"])
+                    _build_spec()
+                    # -----------------
+
                     load_selection(history[0]["path"], history[0].get("selected", []))
                 else:
                     # Limpa seleção da esquerda se não houver mais histórico
